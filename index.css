@@ -1,0 +1,32 @@
+.bg-dark {
+    background-color: rgb(115 143 168 / 23%) !important;
+}
+
+.bg-white button {
+    margin-bottom: 30px !important;
+    width: 150px !important;
+    border: 1px solid red;
+}
+
+.bg-white select {
+    width: 150px !important;
+    border: 1px solid red;
+}
+
+.bg-white {
+    background-color: rgb(95 85 85 / 9%) !important;
+}
+
+.bg-light {
+    background-image: url('https://raw.githubusercontent.com/quangvu0407/-ACN/refs/heads/main/background.jpg') !important;
+    background-size: cover;
+}
+
+.list-group {
+    border: 1px solid red;
+    background-color: azure;
+}
+h2 {
+    color: antiquewhite;
+    text-align: center;
+}

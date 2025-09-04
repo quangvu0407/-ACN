@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Garbage Classification & Detection</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+  <style>
+    body { background: #f8f9fa; }
+    .container-fluid { height: 100vh; }
+    .sidebar { width: 220px; }
+    .result-img { max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin-top: 10px; }
+  </style>
+</head>
+<body class="bg-light">
+  <h2>Hệ thống phân loại rác thải</h2>
+  <div class="container-fluid d-flex">
+    <!-- Sidebar -->
+    <div class="bg-white border-end p-3 sidebar">
+      <h5 class="mb-3">📌 Chức năng</h5>
+      <button class="btn btn-primary w-100 mb-2" onclick="uploadImage()">📷 Gửi Ảnh</button>
+      <button class="btn btn-success w-100 mb-2" onclick="startCamera()">🎥 Mở Camera</button>
+      <button class="btn btn-danger w-100 mb-2" onclick="stopCamera()">⛔ Tắt Camera</button>
+      <hr>
+      <label for="modeSelect" class="form-label">🔄 Chọn Mô Hình</label>
+      <select id="modeSelect" class="form-select mb-2">
+        <option value="classify">EfficientNetB3</option>
+        <option value="detect">YOLOv8</option>
+      </select>
+      <input type="file" id="fileInput" accept="image/*,video/*" class="d-none">
+    </div>
+
+    <!-- Display -->
+    <div class="flex-grow-1 d-flex align-items-center justify-content-center bg-dark" id="displayArea">
+      <p class="text-white">Chưa có hình ảnh</p>
+    </div>
+
+    <!-- Results -->
+    <div class="bg-white border-start p-3" style="width: 280px;">
+      <h5>🗑️ Kết quả</h5>
+      <ul class="list-group" id="resultList"></ul>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:5000/predict";
+    const fileInput = document.getElementById("fileInput");
+    const displayArea = document.getElementById("displayArea");
+    const resultList = document.getElementById("resultList");
+    const modeSelect = document.getElementById("modeSelect");
+    let stream, videoElement, intervalId;
+
+    // Upload ảnh
+    function uploadImage() {
+      fileInput.click();
+      fileInput.onchange = () => {
+        const file = fileInput.files[0];
+        if (file && file.type.startsWith("image")) {
+          const img = document.createElement("img");
+          img.src = URL.createObjectURL(file);
+          img.classList.add("img-fluid", "rounded");
+          displayArea.innerHTML = "";
+          displayArea.appendChild(img);
+          classifyFile(file);
+        }
+      };
+    }
+
+    // Mở camera
+    async function startCamera() {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoElement = document.createElement("video");
+      videoElement.srcObject = stream;
+      videoElement.autoplay = true;
+      videoElement.classList.add("w-100", "rounded");
+      displayArea.innerHTML = "";
+      displayArea.appendChild(videoElement);
+
+      resultList.innerHTML = `<li class="list-group-item">Camera đang chạy...</li>`;
+
+      intervalId = setInterval(() => classifyFrame(videoElement), 2000);
+    }
+
+    // Tắt camera
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        clearInterval(intervalId);
+        displayArea.innerHTML = `<p class="text-white">Camera đã tắt</p>`;
+        resultList.innerHTML = "";
+      }
+    }
+
+    // Gửi file ảnh
+    async function classifyFile(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("mode", modeSelect.value);
+
+      const res = await fetch(API_BASE, { method: "POST", body: formData });
+      const data = await res.json();
+      renderResults(data);
+    }
+
+    // Gửi frame từ camera
+    async function classifyFrame(video) {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg"));
+      const formData = new FormData();
+      formData.append("file", blob, "frame.jpg");
+      formData.append("mode", modeSelect.value);
+
+      const res = await fetch(API_BASE, { method: "POST", body: formData });
+      const data = await res.json();
+      renderResults(data);
+    }
+
+    // Hiển thị kết quả
+   function renderResults(data) {
+  resultList.innerHTML = "";
+
+  if (!data) {
+    resultList.innerHTML = `<li class="list-group-item">Không có dữ liệu</li>`;
+    return;
+  }
+
+  if (modeSelect.value === "classify") {
+    resultList.innerHTML = `<li class="list-group-item fw-bold">${data.label} (${data.confidence}%)</li>`;
+  } 
+  else if (modeSelect.value === "detect") {
+    if (!Array.isArray(data.objects) || data.objects.length === 0) {
+      resultList.innerHTML = `<li class="list-group-item">Không phát hiện</li>`;
+    } else {
+      data.objects.forEach(obj => {
+        const li = document.createElement("li");
+        li.classList.add("list-group-item");
+        li.textContent = `${obj.label} (${obj.confidence}%)`;
+        resultList.appendChild(li);
+      });
+    }
+
+    // hiển thị ảnh có bounding box
+    if (data.image) {
+      const img = document.createElement("img");
+      img.src = "data:image/jpeg;base64," + data.image;
+      img.classList.add("img-fluid", "rounded", "mt-2");
+      displayArea.innerHTML = "";
+      displayArea.appendChild(img);
+    }
+  }
+}
+
+  </script>
+</body>
+</html>
